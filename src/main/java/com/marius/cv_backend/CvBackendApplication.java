@@ -2,15 +2,23 @@ package com.marius.cv_backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.MediaType;
-import org.springframework.core.io.Resource;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.HttpStatus;
-import java.io.File;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpRange;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 
 @SpringBootApplication
 public class CvBackendApplication {
@@ -45,27 +53,48 @@ class RootController {
 
  
     @GetMapping("/api/video")
-    public ResponseEntity<Resource> streamVideo() {
+    public ResponseEntity<InputStreamResource> streamVideo(
+            @RequestHeader(value = "Range", required = false) String rangeHeader) throws IOException {
+
         // Path to the local video file
-        String videoPath = "/media/marius/DISK GROS/reels/BABEL/cahnt.mp4"; // Replace with the actual path to your video file
+        String videoPath = "/media/marius/DISK GROS/reels/BABEL/cahnt.mp4"; 
         File videoFile = new File(videoPath);
 
         if (!videoFile.exists()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
 
-        // Load the video file as a resource
-        FileSystemResource resource = new FileSystemResource(videoFile);
+        long fileLength = videoFile.length();
+        long start = 0;
+        long end = fileLength - 1;
 
-        // Set HTTP headers for streaming
+        // Parse the Range header if present
+        if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+            List<HttpRange> ranges = HttpRange.parseRanges(rangeHeader);
+            if (!ranges.isEmpty()) {
+                HttpRange range = ranges.get(0);
+                start = range.getRangeStart(fileLength);
+                end = range.getRangeEnd(fileLength);
+            }
+        }
+
+        // Set the content length for the requested range
+        long contentLength = end - start + 1;
+
+        // Open an InputStream for the requested range
+        InputStream inputStream = new FileInputStream(videoFile);
+        inputStream.skip(start);
+
+        // Set HTTP headers for partial content
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        headers.setContentDispositionFormData("attachment", videoFile.getName());
+        headers.add("Content-Type", "video/mp4");
+        headers.add("Accept-Ranges", "bytes");
+        headers.add("Content-Range", "bytes " + start + "-" + end + "/" + fileLength);
 
-        // Return the video file as a stream
-        return ResponseEntity.ok()
+        // Return the partial content response
+        return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .headers(headers)
-                .contentLength(videoFile.length())
-                .body(resource);
+                .contentLength(contentLength)
+                .body(new InputStreamResource(inputStream));
     }
 }

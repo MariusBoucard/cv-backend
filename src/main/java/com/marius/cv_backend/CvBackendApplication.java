@@ -33,6 +33,7 @@ public class CvBackendApplication {
 }
 
 @RestController
+@CrossOrigin(origins = "*")
 class RootController {
 
     @GetMapping("/")
@@ -85,7 +86,7 @@ class RootController {
                 .body(new InputStreamResource(inputStream));
     }
 
-    @CrossOrigin(origins = "http://localhost:5173") 
+
     @GetMapping("/api/cvPDF")
     public ResponseEntity<Resource> getCvPDF() throws IOException {
         // Load the PDF file from the classpath

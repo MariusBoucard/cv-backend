@@ -1,5 +1,5 @@
 package com.marius.cv_backend;
-
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.core.io.FileSystemResource;
@@ -13,12 +13,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+
+
 
 @SpringBootApplication
 public class CvBackendApplication {
@@ -40,35 +44,22 @@ class RootController {
     public String health() {
         return "OK";
     }
-
-    @GetMapping("/api/subpath1")
-    public String subpath1() {
-        return "This is Subpath 1";
-    }
-
-    @GetMapping("/api/subpath2")
-    public String subpath2() {
-        return "This is Subpath 2";
-    }
-
  
     @GetMapping("/api/video")
     public ResponseEntity<InputStreamResource> streamVideo(
             @RequestHeader(value = "Range", required = false) String rangeHeader) throws IOException {
 
-        // Path to the local video file
-        String videoPath = "/media/marius/DISK GROS/reels/BABEL/cahnt.mp4"; 
-        File videoFile = new File(videoPath);
+        String videoPath = "static/videos/ATWA.mp4";
+        Resource videoResource = new ClassPathResource(videoPath);
 
-        if (!videoFile.exists()) {
+        if (!videoResource.exists()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
 
-        long fileLength = videoFile.length();
+        long fileLength = videoResource.contentLength();
         long start = 0;
         long end = fileLength - 1;
 
-        // Parse the Range header if present
         if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
             List<HttpRange> ranges = HttpRange.parseRanges(rangeHeader);
             if (!ranges.isEmpty()) {
@@ -78,23 +69,67 @@ class RootController {
             }
         }
 
-        // Set the content length for the requested range
         long contentLength = end - start + 1;
 
-        // Open an InputStream for the requested range
-        InputStream inputStream = new FileInputStream(videoFile);
+        InputStream inputStream = videoResource.getInputStream();
         inputStream.skip(start);
 
-        // Set HTTP headers for partial content
         HttpHeaders headers = new HttpHeaders();
         headers.add("Content-Type", "video/mp4");
         headers.add("Accept-Ranges", "bytes");
         headers.add("Content-Range", "bytes " + start + "-" + end + "/" + fileLength);
 
-        // Return the partial content response
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .headers(headers)
                 .contentLength(contentLength)
                 .body(new InputStreamResource(inputStream));
+    }
+
+    @CrossOrigin(origins = "http://localhost:5173") 
+    @GetMapping("/api/cvPDF")
+    public ResponseEntity<Resource> getCvPDF() throws IOException {
+        // Load the PDF file from the classpath
+        String pdfPath = "static/cv.pdf";
+        Resource resource = new ClassPathResource(pdfPath);
+
+        if (!resource.exists()) {
+            System.err.println("PDF file not found: " + pdfPath);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("attachment", resource.getFilename());
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentLength(resource.contentLength())
+                .body(resource);
+    }
+   
+    @GetMapping("/api/audio")
+    public ResponseEntity<InputStreamResource> streamAudio(
+            @RequestParam String name, 
+            @RequestParam String type
+    ) throws IOException {
+        String audioPath = "static/audio/" + type + "/" + name + ".wav";
+
+        Resource audioResource = new ClassPathResource(audioPath);
+
+        System.err.println("Audio file path: " + audioPath);
+        System.err.println("Audio file exists: " + audioResource.exists());
+
+        if (!audioResource.exists()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("audio/wav"));
+        headers.add("Accept-Ranges", "bytes");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentLength(audioResource.contentLength())
+                .body(new InputStreamResource(audioResource.getInputStream()));
     }
 }

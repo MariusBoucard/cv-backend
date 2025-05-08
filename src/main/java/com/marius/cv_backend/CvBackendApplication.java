@@ -48,9 +48,11 @@ class RootController {
  
     @GetMapping("/api/video")
     public ResponseEntity<InputStreamResource> streamVideo(
-            @RequestHeader(value = "Range", required = false) String rangeHeader) throws IOException {
-
-        String videoPath = "static/videos/ATWA.mp4";
+            @RequestParam String name, 
+            @RequestHeader(value = "Range", required = false) String rangeHeader) throws IOException 
+    {
+        String videoPath = "static/videos/"+name;
+        
         Resource videoResource = new ClassPathResource(videoPath);
 
         if (!videoResource.exists()) {
@@ -113,10 +115,10 @@ class RootController {
             @RequestParam String name, 
             @RequestParam String type
     ) throws IOException {
-        String audioPath = "static/audio/" + type + "/" + name + ".wav";
+        String audioPath = "static/audio/" + type + "/" + name;
 
         Resource audioResource = new ClassPathResource(audioPath);
-
+        
         System.err.println("Audio file path: " + audioPath);
         System.err.println("Audio file exists: " + audioResource.exists());
 
@@ -125,7 +127,7 @@ class RootController {
         }
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType("audio/wav"));
+        headers.setContentType(MediaType.parseMediaType("audio/mp3"));
         headers.add("Accept-Ranges", "bytes");
 
         return ResponseEntity.ok()
